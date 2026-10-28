@@ -3,8 +3,6 @@ name: Build Debug APK
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -13,42 +11,28 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Extract project ZIP
         run: |
-          ls -la
           ZIP=$(find . -maxdepth 2 -name "*.zip" | head -1)
-          echo "ZIP=$ZIP"
           mkdir -p extracted
           unzip -q "$ZIP" -d extracted
-          SETTINGS=$(find extracted -name "settings.gradle.kts" | head -1)
-          echo "SETTINGS=$SETTINGS"
-          PROJECT_DIR=$(dirname "$SETTINGS")
-          echo "PROJECT_DIR=$PROJECT_DIR"
+          PROJECT_DIR=\( (dirname " \)(find extracted -name settings.gradle.kts | head -1)")
           shopt -s dotglob
           for item in "$PROJECT_DIR"/*; do
-            name=$(basename "$item")
-            [ "$name" = ".github" ] && continue
+            [ "$(basename "$item")" = ".github" ] && continue
             cp -a "$item" .
           done
           shopt -u dotglob
-          echo "=== Project root ==="
           ls -la
-          echo "=== build.gradle.kts (root) ==="
-          head -30 build.gradle.kts
-          echo "=== app/build.gradle.kts ==="
-          head -40 app/build.gradle.kts
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
 
@@ -57,34 +41,18 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           mkdir -p "$ANDROID_HOME/licenses"
           printf '24333f8a63b6825ea9c5514f83c2829b004d1fee\n' > "$ANDROID_HOME/licenses/android-sdk-license"
-          printf '84831b94096449617ae0f5390dcea4d0e79c4cbc\n' > "$ANDROID_HOME/licenses/android-sdk-preview-license"
           CMDLINE=$(find "$ANDROID_HOME" -name sdkmanager 2>/dev/null | head -1)
-          if [ -n "$CMDLINE" ]; then
-            yes | "$CMDLINE" --licenses >/dev/null 2>&1 || true
-            "$CMDLINE" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
-          fi
+          [ -n "$CMDLINE" ] && yes | "$CMDLINE" --licenses >/dev/null 2>&1 || true
+          [ -n "$CMDLINE" ] && "$CMDLINE" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
 
       - name: Create Gradle Wrapper
-        run: |
-          gradle wrapper --gradle-version 8.13
-          chmod +x gradlew
-          cat gradle/wrapper/gradle-wrapper.properties
+        run: gradle wrapper --gradle-version 8.13 && chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --info --no-daemon 2>&1 | tee build.log
-        continue-on-error: true
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Show last 80 lines of build log
-        if: always()
-        run: tail -80 build.log || true
-
-      - name: Upload APK
-        if: always()
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: kalamechi-debug-apk
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            build.log
-          retention-days: 7
-          if-no-files-found: warn
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
