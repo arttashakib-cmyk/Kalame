@@ -15,17 +15,19 @@ jobs:
 
       - name: Extract project ZIP
         run: |
-          ZIP=$(find . -maxdepth 2 -name "*.zip" | head -1)
-          mkdir -p extracted
-          unzip -q "$ZIP" -d extracted
-          PROJECT_DIR=\( (dirname " \)(find extracted -name settings.gradle.kts | head -1)")
-          shopt -s dotglob
-          for item in "$PROJECT_DIR"/*; do
-            [ "$(basename "$item")" = ".github" ] && continue
-            cp -a "$item" .
-          done
-          shopt -u dotglob
           ls -la
+          unzip -q KalamechiApp.zip -d extracted
+          ls -la extracted
+          ls -la extracted/KalamechiApp
+          cp -a extracted/KalamechiApp/app .
+          cp -a extracted/KalamechiApp/build.gradle.kts .
+          cp -a extracted/KalamechiApp/settings.gradle.kts .
+          cp -a extracted/KalamechiApp/gradle.properties .
+          cp -a extracted/KalamechiApp/content . || true
+          cp -a extracted/KalamechiApp/docs . || true
+          ls -la
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
 
       - uses: actions/setup-java@v4
         with:
@@ -40,13 +42,15 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           mkdir -p "$ANDROID_HOME/licenses"
-          printf '24333f8a63b6825ea9c5514f83c2829b004d1fee\n' > "$ANDROID_HOME/licenses/android-sdk-license"
-          CMDLINE=$(find "$ANDROID_HOME" -name sdkmanager 2>/dev/null | head -1)
-          [ -n "$CMDLINE" ] && yes | "$CMDLINE" --licenses >/dev/null 2>&1 || true
-          [ -n "$CMDLINE" ] && "$CMDLINE" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+          echo 24333f8a63b6825ea9c5514f83c2829b004d1fee > "$ANDROID_HOME/licenses/android-sdk-license"
+          CMDLINE=$(find "$ANDROID_HOME" -name sdkmanager | head -1)
+          yes | "$CMDLINE" --licenses > /dev/null 2>&1 || true
+          "$CMDLINE" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
 
       - name: Create Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.13 && chmod +x gradlew
+        run: |
+          gradle wrapper --gradle-version 8.13
+          chmod +x gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace --no-daemon
