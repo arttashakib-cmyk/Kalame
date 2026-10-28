@@ -16,6 +16,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Find and extract project ZIP
+        run: |
+          echo "=== Repo root contents ==="
+          ls -la
+          # Find any zip in the repo
+          ZIP=$(find . -maxdepth 2 -name "*.zip" | head -1)
+          if [ -n "$ZIP" ]; then
+            echo "Found ZIP: $ZIP"
+            mkdir -p project
+            unzip -q "$ZIP" -d project
+            # If zip contains a single top folder, go into it
+            if [ $(ls project | wc -l) -eq 1 ]; then
+              SUB=$(ls project)
+              echo "Moving contents of $SUB to workspace"
+              shopt -s dotglob
+              mv project/$SUB/* .
+              shopt -u dotglob
+            else
+              shopt -s dotglob
+              mv project/* .
+              shopt -u dotglob
+            fi
+            rm -rf project
+          fi
+          echo "=== After extract ==="
+          ls -la
+          test -f settings.gradle.kts || test -f settings.gradle || (echo "ERROR: settings.gradle.kts still missing" && exit 1)
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -29,7 +57,6 @@ jobs:
 
       - name: Configure Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           mkdir -p "$ANDROID_HOME/licenses"
           echo -e "24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > "$ANDROID_HOME/licenses/android-sdk-license"
@@ -55,5 +82,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kalamechi-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            **/app/build/outputs/apk/debug/*.apk
           retention-days: 14
+          if-no-files-found: warn
