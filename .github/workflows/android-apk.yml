@@ -27,12 +27,19 @@ jobs:
         with:
           gradle-version: '9.6.0'
 
-      - name: Setup Android environment
+      - name: Configure Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          mkdir -p "$ANDROID_HOME/licenses"
+          echo -e "24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "84831b94096449617ae0f5390dcea4d0e79c4cbc\n" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          CMDLINE=$(find "$ANDROID_HOME" -name sdkmanager 2>/dev/null | head -1)
+          if [ -n "$CMDLINE" ]; then
+            yes | "$CMDLINE" --licenses >/dev/null 2>&1 || true
+            "$CMDLINE" "platforms;android-36" "build-tools;36.0.0" "platform-tools" 2>/dev/null || \
+            "$CMDLINE" "platforms;android-35" "build-tools;35.0.0" "platform-tools" 2>/dev/null || true
+          fi
 
       - name: Create Gradle Wrapper
         run: |
