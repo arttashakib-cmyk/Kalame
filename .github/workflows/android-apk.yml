@@ -15,19 +15,14 @@ jobs:
 
       - name: Extract project ZIP
         run: |
-          ls -la
           unzip -q KalamechiApp.zip -d extracted
-          ls -la extracted
-          ls -la extracted/KalamechiApp
           cp -a extracted/KalamechiApp/app .
           cp -a extracted/KalamechiApp/build.gradle.kts .
           cp -a extracted/KalamechiApp/settings.gradle.kts .
           cp -a extracted/KalamechiApp/gradle.properties .
           cp -a extracted/KalamechiApp/content . || true
-          cp -a extracted/KalamechiApp/docs . || true
           ls -la
           test -f settings.gradle.kts
-          test -f app/build.gradle.kts
 
       - uses: actions/setup-java@v4
         with:
@@ -53,10 +48,24 @@ jobs:
           chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        id: build
+        continue-on-error: true
+        run: ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
+
+      - name: Show errors
+        if: always()
+        run: |
+          echo "===== ERRORS ====="
+          grep -E "^e: |FAILURE:|error:" build.log | head -80 || true
+          echo "===== LAST 40 LINES ====="
+          tail -40 build.log || true
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: kalamechi-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 14
+          name: build-output
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            build.log
+          if-no-files-found: warn
+          retention-days: 7
